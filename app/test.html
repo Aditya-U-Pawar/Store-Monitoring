@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Store Monitoring Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">Store Monitoring Dashboard</h1>
+        
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Generate Report</h2>
+            <button 
+                onclick="triggerReport()" 
+                class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition duration-200 disabled:bg-blue-300 disabled:cursor-not-allowed"
+                id="triggerButton"
+            >
+                Generate New Report
+            </button>
+            <div id="reportId" class="mt-4 text-gray-600"></div>
+        </div>
+        
+        <div>
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Check Report Status</h2>
+            <div class="flex gap-2">
+                <input 
+                    type="text" 
+                    id="reportIdInput" 
+                    placeholder="Enter Report ID" 
+                    class="flex-grow p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                <button 
+                    onclick="getReport()" 
+                    class="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition duration-200 disabled:bg-green-300 disabled:cursor-not-allowed"
+                    id="statusButton"
+                >
+                    Check Status
+                </button>
+            </div>
+            <div id="reportStatus" class="mt-4 text-gray-600"></div>
+        </div>
+    </div>
+
+    <script>
+        async function triggerReport() {
+            const triggerButton = document.getElementById('triggerButton');
+            triggerButton.disabled = true;
+            triggerButton.classList.add('animate-pulse');
+            document.getElementById('reportId').innerHTML = 
+                `<p class="text-blue-600">Generating report...</p>`;
+
+            try {
+                const response = await fetch('/trigger_report', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                document.getElementById('reportId').innerHTML = `
+                    <p class="font-medium"><span class="font-bold">Report ID:</span> ${data.report_id}</p>
+                    <p class="text-sm text-gray-500">Copy this ID to check status below</p>
+                `;
+                document.getElementById('reportIdInput').value = data.report_id;
+            } catch (error) {
+                document.getElementById('reportId').innerHTML = 
+                    `<p class="text-red-600">Error: ${error.message}</p>`;
+            } finally {
+                triggerButton.disabled = false;
+                triggerButton.classList.remove('animate-pulse');
+            }
+        }
+        
+        async function getReport() {
+            const reportId = document.getElementById('reportIdInput').value;
+            const statusButton = document.getElementById('statusButton');
+            
+            if (!reportId) {
+                document.getElementById('reportStatus').innerHTML = 
+                    `<p class="text-red-600">Please enter a Report ID</p>`;
+                return;
+            }
+            
+            statusButton.disabled = true;
+            statusButton.classList.add('animate-pulse');
+            document.getElementById('reportStatus').innerHTML = 
+                `<p class="text-blue-600">Checking report status...</p>`;
+
+            try {
+                const response = await fetch(`/get_report?report_id=${reportId}`);
+                
+                if (response.headers.get('content-type').includes('application/json')) {
+                    const data = await response.json();
+                    document.getElementById('reportStatus').innerHTML = `
+                        <p class="font-medium"><span class="font-bold">Status:</span> ${data.status}</p>
+                        <p class="text-sm text-gray-500">Keep checking until status is complete</p>
+                    `;
+                } else {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `store_report_${reportId.substring(0,8)}.csv`;
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    
+                    document.getElementById('reportStatus').innerHTML = 
+                        `<p class="text-green-600 font-medium">Success! CSV file downloaded</p>`;
+                }
+            } catch (error) {
+                document.getElementById('reportStatus').innerHTML = 
+                    `<p class="text-red-600">Error: ${error.message}</p>`;
+            } finally {
+                statusButton.disabled = false;
+                statusButton.classList.remove('animate-pulse');
+            }
+        }
+    </script>
+</body>
+</html>
